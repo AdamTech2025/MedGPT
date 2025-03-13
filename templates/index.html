@@ -113,6 +113,28 @@
             margin: 0;
             font-size: 1.3rem;
         }
+        .multiple-codes {
+            margin-top: 15px;
+        }
+        .code-item {
+            background-color: #e8f4f8;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 8px;
+            border-left: 3px solid #3498db;
+        }
+        .code-item.primary {
+            background-color: #d4edda;
+            border-left: 3px solid #28a745;
+        }
+        .modifier {
+            background-color: #f8d7da;
+            color: #721c24;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            margin-left: 5px;
+        }
     </style>
 </head>
 <body>
@@ -148,14 +170,34 @@
             <div class="header-section">
                 <h2>CPT Code Analysis Results</h2>
             </div>
-            <div class="cpt-code">CPT Code: <span id="cpt-code"></span></div>
-            <div class="description">Description: <span id="description"></span></div>
+            
+            <!-- Single CPT Code Display -->
+            <div id="single-code-display">
+                <div class="cpt-code">CPT Code: <span id="cpt-code"></span></div>
+                <div class="description">Description: <span id="description"></span></div>
+            </div>
+            
+            <!-- Multiple CPT Codes Display -->
+            <div id="multiple-codes-display" style="display: none;">
+                <h3>CPT Codes:</h3>
+                <div id="cpt-codes-list" class="multiple-codes"></div>
+                <div class="description">Description: <span id="multi-description"></span></div>
+            </div>
+            
             <div class="explanation">
                 <strong>Explanation:</strong>
                 <p id="explanation"></p>
             </div>
+            
             <div id="confidence-container">
                 <span class="confidence" id="confidence"></span>
+            </div>
+            
+            <div class="mt-4">
+                <h4>Coding Guidelines Applied:</h4>
+                <ul id="guidelines-applied" class="small text-muted">
+                    <!-- Guidelines will be added here dynamically -->
+                </ul>
             </div>
         </div>
         
@@ -172,6 +214,8 @@
             const loading = document.getElementById('loading');
             const resultContainer = document.getElementById('result-container');
             const errorMessage = document.getElementById('error-message');
+            const singleCodeDisplay = document.getElementById('single-code-display');
+            const multipleCodesDisplay = document.getElementById('multiple-codes-display');
             
             form.addEventListener('submit', async function(e) {
                 e.preventDefault();
@@ -210,9 +254,49 @@
                     
                     const data = await response.json();
                     
-                    // Display the results
-                    document.getElementById('cpt-code').textContent = data.final_cpt_code;
-                    document.getElementById('description').textContent = data.final_description;
+                    // Handle single vs multiple CPT codes
+                    if (data.has_multiple_codes) {
+                        // Display multiple CPT codes
+                        singleCodeDisplay.style.display = 'none';
+                        multipleCodesDisplay.style.display = 'block';
+                        
+                        // Create list of codes
+                        const codesList = document.getElementById('cpt-codes-list');
+                        codesList.innerHTML = '';
+                        
+                        data.cpt_codes.forEach((code, index) => {
+                            const codeItem = document.createElement('div');
+                            codeItem.className = index === 0 ? 'code-item primary' : 'code-item';
+                            
+                            // Check for modifier
+                            let codeText = code;
+                            if (code.includes('-')) {
+                                const parts = code.split('-');
+                                codeText = `${parts[0]}<span class="modifier">-${parts[1]}</span>`;
+                            }
+                            
+                            codeItem.innerHTML = `${codeText} ${index === 0 ? '(Primary)' : '(Secondary)'}`;
+                            codesList.appendChild(codeItem);
+                        });
+                        
+                        document.getElementById('multi-description').textContent = data.final_description;
+                    } else {
+                        // Display single CPT code
+                        singleCodeDisplay.style.display = 'block';
+                        multipleCodesDisplay.style.display = 'none';
+                        
+                        // Check for modifier
+                        let codeText = data.final_cpt_code;
+                        if (data.final_cpt_code.includes('-')) {
+                            const parts = data.final_cpt_code.split('-');
+                            codeText = `${parts[0]}<span class="modifier">-${parts[1]}</span>`;
+                        }
+                        
+                        document.getElementById('cpt-code').innerHTML = codeText;
+                        document.getElementById('description').textContent = data.final_description;
+                    }
+                    
+                    // Display explanation
                     document.getElementById('explanation').textContent = data.final_explanation;
                     
                     // Set confidence level with appropriate styling

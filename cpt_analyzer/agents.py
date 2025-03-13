@@ -23,13 +23,13 @@ class CPTAnalyzerAgent:
     
     def analyze_scenario(self, scenario_text):
         """
-        Analyze a medical scenario and return the appropriate CPT code
+        Analyze a medical scenario and return the appropriate CPT code(s)
         
         Args:
             scenario_text (str): The medical scenario to analyze
             
         Returns:
-            dict: Contains CPT code, description, and explanation
+            dict: Contains CPT code(s), description, and explanation
         """
         # Convert DataFrame to a format that can be included in the prompt
         if self.cpt_data is not None:
@@ -47,23 +47,26 @@ class CPTAnalyzerAgent:
         AVAILABLE CPT CODES FROM DATABASE:
         {cpt_codes_context}
         
-        Based on the medical scenario and the available CPT codes, determine the most appropriate CPT code.
+        Based on the medical scenario and the available CPT codes, determine the most appropriate CPT code(s). You may select multiple codes if the scenario involves multiple procedures.
+        
         Follow these guidelines:
-        1. Identify the specific procedure and anatomical location
-        2. Match the procedure to the appropriate category
+        1. Identify the specific procedure(s) and anatomical location(s)
+        2. Match each procedure to the appropriate category
         3. Consider any modifiers or special circumstances
-        4. Select the most specific code that matches the scenario
+        4. Select the most specific code(s) that match the scenario
+        5. If multiple procedures are involved, list all relevant CPT codes
+        6. Apply appropriate modifiers like -51 (multiple procedures), -59 (distinct procedures), or -50 (bilateral) as needed
         
         Provide your response in the following format:
-        CPT Code: [code]
-        Description: [short description]
-        Explanation: [detailed explanation of why this code is appropriate]
+        CPT Code(s): [code(s) - if multiple codes, separate with commas, e.g., "51725, 51797-51"]
+        Description: [brief description of the code(s) - if multiple codes, separate descriptions with semicolons]
+        Explanation: [detailed explanation of why these code(s) are appropriate]
         """
         
         try:
             # Call OpenAI API
             response = self.client.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model="gpt-4",  # Using GPT-4 for better accuracy
                 messages=[
                     {"role": "system", "content": "You are a medical coding expert specializing in CPT codes."},
                     {"role": "user", "content": prompt}
@@ -75,18 +78,18 @@ class CPTAnalyzerAgent:
             # Extract the response
             result = response.choices[0].message.content
             
-            # Parse the response to extract CPT code, description, and explanation
+            # Parse the response to extract CPT code(s), description, and explanation
             lines = result.strip().split('\n')
             cpt_code = ""
             description = ""
             explanation = ""
             
             for line in lines:
-                if line.startswith("CPT Code:"):
-                    cpt_code = line.replace("CPT Code:", "").strip()
-                elif line.startswith("Description:"):
+                if line.startswith("CPT Code") or line.startswith("CPT code"):
+                    cpt_code = line.replace("CPT Code(s):", "").replace("CPT Code:", "").replace("CPT code(s):", "").replace("CPT code:", "").strip()
+                elif line.startswith("Description"):
                     description = line.replace("Description:", "").strip()
-                elif line.startswith("Explanation:"):
+                elif line.startswith("Explanation"):
                     explanation = line.replace("Explanation:", "").strip()
                     # Collect any additional lines as part of the explanation
                     explanation_index = lines.index(line)
@@ -105,7 +108,7 @@ class CPTAnalyzerAgent:
 
 
 class CPTValidatorAgent:
-    """Agent that validates CPT codes using GPT-4o"""
+    """Agent that validates CPT codes using GPT-4"""
     
     def __init__(self):
         self.cpt_data = load_cpt_data()
@@ -113,14 +116,14 @@ class CPTValidatorAgent:
     
     def validate_cpt_code(self, scenario_text, analyzer_result):
         """
-        Validate the CPT code provided by the analyzer agent
+        Validate the CPT code(s) provided by the analyzer agent
         
         Args:
             scenario_text (str): The original medical scenario
             analyzer_result (dict): The result from the analyzer agent
             
         Returns:
-            dict: Contains validated CPT code, description, explanation, and confidence
+            dict: Contains validated CPT code(s), description, explanation, and confidence
         """
         # Convert DataFrame to a format that can be included in the prompt
         if self.cpt_data is not None:
@@ -131,39 +134,41 @@ class CPTValidatorAgent:
         # Create a prompt for the OpenAI model
         prompt = f"""
         You are a senior medical coding expert specializing in CPT codes for urinary system procedures.
-        Your task is to validate the CPT code provided by another agent.
+        Your task is to validate the CPT code(s) provided by another agent.
         
         MEDICAL SCENARIO:
         {scenario_text}
         
         FIRST AGENT'S ANALYSIS:
-        CPT Code: {analyzer_result.get('cpt_code', 'Not provided')}
+        CPT Code(s): {analyzer_result.get('cpt_code', 'Not provided')}
         Description: {analyzer_result.get('description', 'Not provided')}
         Explanation: {analyzer_result.get('explanation', 'Not provided')}
         
         AVAILABLE CPT CODES FROM DATABASE:
         {cpt_codes_context}
         
-        Carefully review the scenario and the first agent's analysis. Determine if the CPT code is correct.
-        If it's correct, confirm it. If it's incorrect, provide the correct code.
+        Carefully review the scenario and the first agent's analysis. Determine if the CPT code(s) are correct.
+        If they are correct, confirm them. If they are incorrect, provide the correct code(s).
         
         Follow these guidelines:
-        1. Identify the specific procedure and anatomical location
-        2. Match the procedure to the appropriate category
+        1. Identify the specific procedure(s) and anatomical location(s)
+        2. Match each procedure to the appropriate category
         3. Consider any modifiers or special circumstances
-        4. Select the most specific code that matches the scenario
+        4. Select the most specific code(s) that match the scenario
+        5. If multiple procedures are involved, list all relevant CPT codes
+        6. Apply appropriate modifiers like -51 (multiple procedures), -59 (distinct procedures), or -50 (bilateral) as needed
         
         Provide your response in the following format:
-        CPT Code: [code]
-        Description: [short description]
-        Explanation: [detailed explanation of why this code is appropriate]
-        Confidence: [High/Medium/Low] - your confidence in this code being correct
+        CPT Code(s): [code(s) - if multiple codes, separate with commas, e.g., "51725, 51797-51"]
+        Description: [brief description of the code(s) - if multiple codes, separate descriptions with semicolons]
+        Explanation: [detailed explanation of why these code(s) are appropriate]
+        Confidence: [High/Medium/Low] - your confidence in this/these code(s) being correct
         """
         
         try:
-            # Call OpenAI API with GPT-4o
+            # Call OpenAI API with GPT-4
             response = self.client.chat.completions.create(
-                model="gpt-4o",
+                model="gpt-4",  # Using GPT-4 for better accuracy
                 messages=[
                     {"role": "system", "content": "You are a senior medical coding expert specializing in CPT codes."},
                     {"role": "user", "content": prompt}
@@ -175,7 +180,7 @@ class CPTValidatorAgent:
             # Extract the response
             result = response.choices[0].message.content
             
-            # Parse the response to extract CPT code, description, explanation, and confidence
+            # Parse the response to extract CPT code(s), description, explanation, and confidence
             lines = result.strip().split('\n')
             cpt_code = ""
             description = ""
@@ -183,11 +188,11 @@ class CPTValidatorAgent:
             confidence = ""
             
             for line in lines:
-                if line.startswith("CPT Code:"):
-                    cpt_code = line.replace("CPT Code:", "").strip()
-                elif line.startswith("Description:"):
+                if line.startswith("CPT Code") or line.startswith("CPT code"):
+                    cpt_code = line.replace("CPT Code(s):", "").replace("CPT Code:", "").replace("CPT code(s):", "").replace("CPT code:", "").strip()
+                elif line.startswith("Description"):
                     description = line.replace("Description:", "").strip()
-                elif line.startswith("Explanation:"):
+                elif line.startswith("Explanation"):
                     explanation = line.replace("Explanation:", "").strip()
                     # Collect any additional lines as part of the explanation
                     explanation_index = lines.index(line)
